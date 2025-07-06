@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="icon.png" type="image/x-icon">
+  <title>Tin nhắn</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+  <style>
+    /* --- Cài đặt cơ bản & Bố cục chính --- */
+    html {
+      height: 100%;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #eef2f3, #8e9eab);
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    /* --- Màn hình đăng nhập --- */
+    #login-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    #login-form {
+      background: white;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      text-align: center;
+      width: 300px;
+    }
+    #login-form h2 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    #passwordInput {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+      margin-bottom: 20px;
+    }
+    #login-form button {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      color: white;
+      background-color: #4caf50;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    #login-form button:hover {
+      background-color: #388e3c;
+    }
+    #error-message {
+        color: #d93025;
+        margin-top: 15px;
+        font-weight: 500;
+        min-height: 1.2em; /* Giữ không gian cố định cho thông báo lỗi */
+    }
+
+    /* --- Lớp tiện ích --- */
+    .hidden {
+      display: none !important; /* Dùng để ẩn/hiện các phần tử */
+    }
+
+    /* --- Nội dung chính (Chat & Controls) --- */
+    #main-content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    /* --- Khung chứa tin nhắn --- */
+    #chat-container {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 15px;
+      scroll-behavior: smooth;
+    }
+
+    /* --- Bố cục cho từng tin nhắn --- */
+    .message-wrapper {
+      display: flex;
+      margin-bottom: 12px;
+    }
+    .message {
+      max-width: 75%;
+      padding: 10px 15px;
+      border-radius: 18px;
+      line-height: 1.5;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .phuong-anh-wrapper { justify-content: flex-start; }
+    .phuong-anh { background-color: #f0f0f0; border-left: 4px solid #aaa; }
+    .quy-wrapper { justify-content: flex-end; }
+    .quy { background-color: #d4fcd4; border-right: 4px solid #4caf50; }
+    .sender { font-weight: bold; display: block; margin-bottom: 5px; color: #333; }
+    .text { font-size: 1.05em; }
+    .time { font-size: 0.75em; color: #666; display: block; margin-top: 6px; text-align: right; }
+
+    /* --- Thanh điều khiển phân trang --- */
+    .controls {
+      background: #ffffffee;
+      padding: 10px;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+      border-top: 1px solid #ddd;
+      flex-shrink: 0;
+    }
+    .page-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      align-items: center;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .controls input, .controls button, .controls select {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+      height: 40px;
+      box-sizing: border-box;
+    }
+    .controls input[type="number"] { width: 70px; text-align: center; }
+    .controls button { background-color: #4caf50; color: white; cursor: pointer; transition: background-color 0.3s ease; border: none; }
+    .controls button:hover { background-color: #388e3c; }
+    
+    /* --- Tương thích với điện thoại --- */
+    @media (max-width: 600px) {
+      #login-form { width: calc(100% - 40px); }
+      .message { max-width: 85%; }
+      .page-group { gap: 5px; }
+      .controls input, .controls button { padding: 8px; font-size: 14px; height: 38px; }
+      .controls input[type="number"] { width: 55px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="login-screen">
+    <form id="login-form">
+      <h2>Đăng nhập để xem</h2>
+      <input type="password" id="passwordInput" placeholder="Nhập mật khẩu...">
+      <button type="submit">Vào xem</button>
+      <p id="error-message"></p>
+    </form>
+  </div>
+
+  <div id="main-content" class="hidden">
+    <div id="chat-container"></div>
+    <div class="controls">
+      <div class="page-group">
+        <button id="firstBtn">&laquo;</button>
+        <button id="prevBtn">&lsaquo;</button>
+        <input type="number" id="pageInput" min="1" value="1"> / <span id="totalPages"></span>
+        <button id="goBtn">Go</button>
+        <button id="nextBtn">&rsaquo;</button>
+        <button id="lastBtn">&raquo;</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function _0x388a(_0x28a660,_0x3ca85e){const _0x271b3e=_0x271b();return _0x388a=function(_0x388adb,_0x29f791){_0x388adb=_0x388adb-0x87;let _0x5beeee=_0x271b3e[_0x388adb];return _0x5beeee;},_0x388a(_0x28a660,_0x3ca85e);}const _0x3a207b=_0x388a;function _0x271b(){const _0x4edb6e=['goBtn','Không\x20tìm\x20thấy\x20tệp\x20tin\x20mã\x20hóa.','24ZgjWhI','.</p>','querySelectorAll','onclick','error-message','phuong-anh-wrapper','pageInput','quy','cloneNode','304FYiMsh','24HQMhwG','9NGTgXO','firstBtn','passwordInput','78976AFsoYC','713390wMvvAC','createElement','<p\x20style=\x22text-align:\x20center;\x20color:\x20red;\x22><b>Lỗi\x20giải\x20mã!</b><br>Có\x20thể\x20bạn\x20đã\x20nhập\x20sai\x20mật\x20khẩu.\x20Vui\x20lòng\x20tải\x20lại\x20trang\x20và\x20thử\x20lại.</p>','AES','encrypted_chats/chat_','querySelector','Utf8','10531477KxGsjY','appendChild','73353bAniZz','<p\x20style=\x22text-align:\x20center;\x22>Không\x20tải\x20được\x20trang\x20','6778343etwQkK','addEventListener','994boMYbE','classList','enc','text','value','scrollTop','1614455KuEsNc','toString','main-content','126LPRFwO','forEach','.chat-container','innerHTML','DOMContentLoaded','login-screen','preventDefault','textContent','add','chat-container','.html.enc','decrypt','login-form','4504hQXcyx','212spfKWJ','text/html','message-wrapper\x20','Vui\x20lòng\x20nhập\x20mật\x20khẩu.','getElementById','prevBtn','lastBtn'];_0x271b=function(){return _0x4edb6e;};return _0x271b();}(function(_0xdd166a,_0x6e7b5e){const _0x41db59=_0x388a,_0xc72062=_0xdd166a();while(!![]){try{const _0x3fc3a8=parseInt(_0x41db59(0xa0))/0x1*(-parseInt(_0x41db59(0x8d))/0x2)+parseInt(_0x41db59(0xaf))/0x3*(-parseInt(_0x41db59(0x8e))/0x4)+-parseInt(_0x41db59(0xb9))/0x5*(parseInt(_0x41db59(0xa1))/0x6)+parseInt(_0x41db59(0xb3))/0x7*(parseInt(_0x41db59(0xa5))/0x8)+parseInt(_0x41db59(0xa2))/0x9*(parseInt(_0x41db59(0xa6))/0xa)+parseInt(_0x41db59(0xad))/0xb*(-parseInt(_0x41db59(0x97))/0xc)+parseInt(_0x41db59(0xb1))/0xd*(parseInt(_0x41db59(0xbc))/0xe);if(_0x3fc3a8===_0x6e7b5e)break;else _0xc72062['push'](_0xc72062['shift']());}catch(_0x310e37){_0xc72062['push'](_0xc72062['shift']());}}}(_0x271b,0xef01d),document[_0x3a207b(0xb2)](_0x3a207b(0xc0),()=>{const _0x416427=_0x3a207b,_0xceaaf=0xf97;let _0x58b6f4='12345';const _0x44b3e4=document[_0x416427(0x92)](_0x416427(0xc1)),_0x3fd261=document[_0x416427(0x92)](_0x416427(0x8c)),_0x5c7a8f=document[_0x416427(0x92)](_0x416427(0xa4)),_0x3079ea=document[_0x416427(0x92)](_0x416427(0x9b)),_0x4b3a27=document[_0x416427(0x92)](_0x416427(0xbb)),_0x348094=document['getElementById'](_0x416427(0x89)),_0x356f1a=document[_0x416427(0x92)](_0x416427(0x9d));_0x3fd261[_0x416427(0xb2)]('submit',_0x18332c=>{const _0x30348a=_0x416427;_0x18332c[_0x30348a(0xc2)]();const _0x5c12d0=_0x5c7a8f[_0x30348a(0xb7)];if(!_0x5c12d0){_0x3079ea[_0x30348a(0x87)]=_0x30348a(0x91);return;}_0x58b6f4=_0x5c12d0,_0x44b3e4[_0x30348a(0xb4)][_0x30348a(0x88)]('hidden'),_0x4b3a27[_0x30348a(0xb4)]['remove']('hidden'),_0x4c6cc5(0x1);});async function _0x4c6cc5(_0x71c932){const _0x5773fa=_0x416427,_0x5197ff=_0x5773fa(0xaa)+_0x71c932+_0x5773fa(0x8a);try{const _0x3fd88a=await fetch(_0x5197ff);if(!_0x3fd88a['ok'])throw new Error(_0x5773fa(0x96));const _0x14a263=await _0x3fd88a[_0x5773fa(0xb6)]();try{const _0x5b8936=CryptoJS[_0x5773fa(0xa9)][_0x5773fa(0x8b)](_0x14a263,_0x58b6f4),_0xea0909=_0x5b8936[_0x5773fa(0xba)](CryptoJS[_0x5773fa(0xb5)][_0x5773fa(0xac)]);if(!_0xea0909)throw new Error('Sai\x20mật\x20khẩu\x20hoặc\x20tệp\x20tin\x20bị\x20lỗi.');const _0x52509c=new DOMParser()['parseFromString'](_0xea0909,_0x5773fa(0x8f)),_0x15e5b9=_0x52509c[_0x5773fa(0xab)](_0x5773fa(0xbe))['innerHTML'];_0x348094[_0x5773fa(0xbf)]=_0x15e5b9;const _0x1a631e=_0x348094[_0x5773fa(0x99)]('.message');_0x348094['innerHTML']='',_0x1a631e[_0x5773fa(0xbd)](_0x48da29=>{const _0xa45aa5=_0x5773fa,_0x140946=document[_0xa45aa5(0xa7)]('div'),_0x5791bd=_0x48da29[_0xa45aa5(0xb4)]['contains'](_0xa45aa5(0x9e))?'quy-wrapper':_0xa45aa5(0x9c);_0x140946['className']=_0xa45aa5(0x90)+_0x5791bd,_0x140946[_0xa45aa5(0xae)](_0x48da29[_0xa45aa5(0x9f)](!![])),_0x348094['appendChild'](_0x140946);});}catch(_0x4a5a06){_0x348094[_0x5773fa(0xbf)]=_0x5773fa(0xa8);}}catch(_0x4d36d6){_0x348094[_0x5773fa(0xbf)]=_0x5773fa(0xb0)+_0x71c932+_0x5773fa(0x98);}_0x356f1a[_0x5773fa(0xb7)]=_0x71c932,currentPage=_0x71c932,_0x348094[_0x5773fa(0xb8)]=0x0;}document[_0x416427(0x92)](_0x416427(0xa3))['onclick']=()=>_0x4c6cc5(0x1),document['getElementById'](_0x416427(0x94))[_0x416427(0x9a)]=()=>_0x4c6cc5(_0xceaaf),document[_0x416427(0x92)](_0x416427(0x93))['onclick']=()=>{if(currentPage>0x1)_0x4c6cc5(--currentPage);},document['getElementById']('nextBtn')[_0x416427(0x9a)]=()=>{if(currentPage<_0xceaaf)_0x4c6cc5(++currentPage);},document[_0x416427(0x92)](_0x416427(0x95))[_0x416427(0x9a)]=()=>{const _0x54534d=_0x416427,_0x40986e=parseInt(_0x356f1a[_0x54534d(0xb7)]);_0x40986e>=0x1&&_0x40986e<=_0xceaaf&&_0x4c6cc5(_0x40986e);};}));
+  </script>
+</body>
+</html>
